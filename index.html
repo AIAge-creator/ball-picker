@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Collector Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #instructions {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Score: 0</div>
+    <div id="instructions">Use WASD or arrow keys to move the player (blue cube)</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Game variables
+        let scene, camera, renderer;
+        let player, collectibles = [];
+        let score = 0;
+        let playerSpeed = 0.1;
+        let ballSpeed = 0.03;
+        let scoreElement;
+        let spawnTimer = 0;
+        let spawnInterval = 60; // frames between spawns
+        let totalCollected = 0;
+        
+        // Movement controls
+        const keys = {
+            a: false, d: false, w: false, s: false,
+            left: false, right: false, up: false, down: false
+        };
+        
+        // Initialize the game
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111133);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 15;
+            camera.position.y = 5;
+            camera.rotation.x = -0.3;
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+            
+            // Create lights
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+            
+            // Create floor
+            const floorGeometry = new THREE.PlaneGeometry(30, 30);
+            const floorMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x444444,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+            
+            // Create player
+            const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const playerMaterial = new THREE.MeshStandardMaterial({ color: 0x3333ff });
+            player = new THREE.Mesh(playerGeometry, playerMaterial);
+            player.position.y = 0.5;
+            scene.add(player);
+            
+            // Create initial collectibles
+            spawnCollectible(5);
+            
+            // Get score element
+            scoreElement = document.getElementById('score');
+            updateScore();
+            
+            // Add event listeners
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('keydown', onKeyDown);
+            window.addEventListener('keyup', onKeyUp);
+            
+            // Start game loop
+            animate();
+        }
+        
+        // Create a single collectible at the edge of the play area
+        function spawnCollectible(count = 1) {
+            const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+            
+            for (let i = 0; i < count; i++) {
+                const material = new THREE.MeshStandardMaterial({ 
+                    color: 0xffcc00,
+                    roughness: 0.3,
+                    metalness: 0.8
+                });
+                
+                const collectible = new THREE.Mesh(geometry, material);
+                
+                // Determine spawn position at the edge
+                let angle = Math.random() * Math.PI * 2;
+                let distance = 14; // edge of play area
+                
+                collectible.position.x = Math.cos(angle) * distance;
+                collectible.position.z = Math.sin(angle) * distance;
+                collectible.position.y = 0.5;
+                
+                // Add velocity towards center with slight randomness
+                collectible.velocity = new THREE.Vector3(
+                    -collectible.position.x / distance * (0.8 + Math.random() * 0.4),
+                    0,
+                    -collectible.position.z / distance * (0.8 + Math.random() * 0.4)
+                );
+                
+                // Add to scene and array
+                scene.add(collectible);
+                collectibles.push(collectible);
+            }
+        }
+        
+        // Handle window resize
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // Handle keydown events
+        function onKeyDown(event) {
+            if (event.key === 'a' || event.key === 'ArrowLeft') keys.a = keys.left = true;
+            if (event.key === 'd' || event.key === 'ArrowRight') keys.d = keys.right = true;
+            if (event.key === 'w' || event.key === 'ArrowUp') keys.w = keys.up = true;
+            if (event.key === 's' || event.key === 'ArrowDown') keys.s = keys.down = true;
+        }
+        
+        // Handle keyup events
+        function onKeyUp(event) {
+            if (event.key === 'a' || event.key === 'ArrowLeft') keys.a = keys.left = false;
+            if (event.key === 'd' || event.key === 'ArrowRight') keys.d = keys.right = false;
+            if (event.key === 'w' || event.key === 'ArrowUp') keys.w = keys.up = false;
+            if (event.key === 's' || event.key === 'ArrowDown') keys.s = keys.down = false;
+        }
+        
+        // Move player based on keys pressed
+        function movePlayer() {
+            if (keys.a || keys.left) player.position.x -= playerSpeed;
+            if (keys.d || keys.right) player.position.x += playerSpeed;
+            if (keys.w || keys.up) player.position.z -= playerSpeed;
+            if (keys.s || keys.down) player.position.z += playerSpeed;
+            
+            // Boundary limits
+            player.position.x = Math.max(-14, Math.min(14, player.position.x));
+            player.position.z = Math.max(-14, Math.min(14, player.position.z));
+        }
+        
+        // Update ball positions - move towards player
+        function moveBalls() {
+            collectibles.forEach(ball => {
+                // Move based on initial velocity
+                ball.position.x += ball.velocity.x * ballSpeed;
+                ball.position.z += ball.velocity.z * ballSpeed;
+                
+                // Also slightly adjust course towards player with increased probability as ball gets closer
+                const distToPlayer = Math.sqrt(
+                    Math.pow(player.position.x - ball.position.x, 2) + 
+                    Math.pow(player.position.z - ball.position.z, 2)
+                );
+                
+                // More attraction as ball gets closer
+                if (distToPlayer < 8 && Math.random() < 0.03) {
+                    const dirX = (player.position.x - ball.position.x) / distToPlayer;
+                    const dirZ = (player.position.z - ball.position.z) / distToPlayer;
+                    
+                    ball.velocity.x = ball.velocity.x * 0.9 + dirX * 0.1;
+                    ball.velocity.z = ball.velocity.z * 0.9 + dirZ * 0.1;
+                    
+                    // Normalize velocity
+                    const speed = Math.sqrt(ball.velocity.x * ball.velocity.x + ball.velocity.z * ball.velocity.z);
+                    if (speed > 0) {
+                        ball.velocity.x /= speed;
+                        ball.velocity.z /= speed;
+                    }
+                }
+            });
+        }
+        
+        // Check for collisions with collectibles
+        function checkCollisions() {
+            for (let i = collectibles.length - 1; i >= 0; i--) {
+                const distance = player.position.distanceTo(collectibles[i].position);
+                
+                if (distance < 1) {
+                    // Remove collectible
+                    scene.remove(collectibles[i]);
+                    collectibles.splice(i, 1);
+                    
+                    // Increase score
+                    score++;
+                    totalCollected++;
+                    updateScore();
+                }
+            }
+        }
+        
+        // Update score display
+        function updateScore() {
+            scoreElement.textContent = `Score: ${score} | Total Collected: ${totalCollected}`;
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            movePlayer();
+            moveBalls();
+            checkCollisions();
+            
+            // Spawning new balls
+            spawnTimer++;
+            if (spawnTimer >= spawnInterval) {
+                spawnCollectible();
+                spawnTimer = 0;
+                
+                // Gradually increase spawn rate
+                spawnInterval = Math.max(20, spawnInterval - 0.1);
+            }
+            
+            // Rotate collectibles
+            collectibles.forEach(collectible => {
+                collectible.rotation.y += 0.02;
+            });
+            
+            // Remove balls that have gone too far from the play area
+            for (let i = collectibles.length - 1; i >= 0; i--) {
+                const distFromCenter = Math.sqrt(
+                    collectibles[i].position.x * collectibles[i].position.x + 
+                    collectibles[i].position.z * collectibles[i].position.z
+                );
+                
+                if (distFromCenter > 20) {
+                    scene.remove(collectibles[i]);
+                    collectibles.splice(i, 1);
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Start the game
+        init();
+    </script>
+</body>
+</html>
