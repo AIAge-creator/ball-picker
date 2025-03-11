@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Three.js Collector Game</title>
+    <title>Sphere dodge</title>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -57,6 +57,35 @@
             cursor: pointer;
             border-radius: 5px;
         }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .control-group {
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .control-group button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .control-group button:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
 <body>
@@ -70,6 +99,20 @@
         <div>Game Over</div>
         <div>Final Score: <span id="finalScore">0</span></div>
         <button id="restart">Play Again</button>
+    </div>
+    <div class="controls">
+        <div class="control-group">
+            Spawn Rate:
+            <button onclick="adjustSpawnRate(-5)">-</button>
+            <span id="spawnRateDisplay">60</span>
+            <button onclick="adjustSpawnRate(5)">+</button>
+        </div>
+        <div class="control-group">
+            Ball Speed:
+            <button onclick="adjustBallSpeed(-0.01)">-</button>
+            <span id="ballSpeedDisplay">0.03</span>
+            <button onclick="adjustBallSpeed(0.01)">+</button>
+        </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
@@ -96,6 +139,18 @@
             left: false, right: false, up: false, down: false
         };
         
+        // Add these functions before the init() function
+
+        function adjustSpawnRate(delta) {
+            spawnInterval = Math.max(10, Math.min(120, spawnInterval + delta));
+            document.getElementById('spawnRateDisplay').textContent = spawnInterval.toFixed(0);
+        }
+
+        function adjustBallSpeed(delta) {
+            ballSpeed = Math.max(0.01, Math.min(0.1, ballSpeed + delta));
+            document.getElementById('ballSpeedDisplay').textContent = ballSpeed.toFixed(2);
+        }
+
         // Initialize the game
         function init() {
             // Create scene
@@ -156,6 +211,10 @@
             
             // Update UI
             updateUI();
+            
+            // Add after other UI elements are initialized
+            document.getElementById('spawnRateDisplay').textContent = spawnInterval.toFixed(0);
+            document.getElementById('ballSpeedDisplay').textContent = ballSpeed.toFixed(2);
             
             // Add event listeners
             window.addEventListener('resize', onWindowResize);
@@ -302,18 +361,18 @@
         function onKeyDown(event) {
             if (!gameActive) return;
             
-            if (event.key === 'a' || event.key === 'ArrowLeft') keys.a = keys.left = true;
-            if (event.key === 'd' || event.key === 'ArrowRight') keys.d = keys.right = true;
-            if (event.key === 'w' || event.key === 'ArrowUp') keys.w = keys.up = true;
-            if (event.key === 's' || event.key === 'ArrowDown') keys.s = keys.down = true;
+            if (event.key === 'j' || event.key === 'a' || event.key === 'ArrowLeft') keys.a = keys.left = true;
+            if (event.key === 'l' || event.key === 'd' || event.key === 'ArrowRight') keys.d = keys.right = true;
+            if (event.key === 'i' || event.key === 'w' || event.key === 'ArrowUp') keys.w = keys.up = true;
+            if (event.key === 'k' || event.key === 's' || event.key === 'ArrowDown') keys.s = keys.down = true;
         }
         
         // Handle keyup events
         function onKeyUp(event) {
-            if (event.key === 'a' || event.key === 'ArrowLeft') keys.a = keys.left = false;
-            if (event.key === 'd' || event.key === 'ArrowRight') keys.d = keys.right = false;
-            if (event.key === 'w' || event.key === 'ArrowUp') keys.w = keys.up = false;
-            if (event.key === 's' || event.key === 'ArrowDown') keys.s = keys.down = false;
+            if (event.key === 'j' || event.key === 'a' || event.key === 'ArrowLeft') keys.a = keys.left = false;
+            if (event.key === 'l' || event.key === 'd' || event.key === 'ArrowRight') keys.d = keys.right = false;
+            if (event.key === 'i' || event.key === 'w' || event.key === 'ArrowUp') keys.w = keys.up = false;
+            if (event.key === 'k' || event.key === 's' || event.key === 'ArrowDown') keys.s = keys.down = false;
         }
         
         // Move player based on keys pressed
