@@ -92,6 +92,7 @@
     <div id="ui">
         <div>Score: <span id="score">0</span></div>
         <div>Total Collected: <span id="totalCollected">0</span></div>
+        <div>Spawn Rate: <span id="spawnRate">0</span></div>
         <div>Lives: <span id="lives">5</span></div>
     </div>
     <div id="instructions">Use WASD or arrow keys to move the player (blue cube)</div>
@@ -203,6 +204,7 @@
             scoreElement = document.getElementById('score');
             totalCollectedElement = document.getElementById('totalCollected');
             livesElement = document.getElementById('lives');
+            spawnRateElement = document.getElementById('spawnRate');
             gameOverElement = document.getElementById('gameOver');
             finalScoreElement = document.getElementById('finalScore');
             
@@ -479,6 +481,7 @@
             scoreElement.textContent = score;
             totalCollectedElement.textContent = totalCollected;
             livesElement.textContent = lives;
+            spawnRateElement.textContent = Math.round(60 - spawnInterval)
         }
         
         // Handle game over
