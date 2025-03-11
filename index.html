@@ -85,6 +85,7 @@
         let lives = 5;
         let gameActive = true;
         let shockwaves = [];
+        let lastTime = 0;
         
         // UI elements
         let scoreElement, totalCollectedElement, livesElement, gameOverElement, finalScoreElement;
@@ -129,6 +130,8 @@
             });
             const floor = new THREE.Mesh(floorGeometry, floorMaterial);
             floor.rotation.x = -Math.PI / 2;
+            floor.position.y = 0;
+            // Add to scene
             scene.add(floor);
             
             // Create player
@@ -164,8 +167,10 @@
             lives = 5;
             score = 0;
             totalCollected = 0;
+            shockwaves = [];
             
             // Start game loop
+            lastTime = performance.now();
             animate();
         }
         
@@ -181,7 +186,6 @@
                 });
                 
                 const collectible = new THREE.Mesh(geometry, material);
-                collectible.lives = 5; // Each ball has 5 lives
                 
                 // Determine spawn position at the edge
                 let angle = Math.random() * Math.PI * 2;
@@ -204,28 +208,39 @@
             }
         }
         
-        // Create shockwave effect
+        // Create spherical shockwave effect
         function createShockwave(position) {
-            const geometry = new THREE.RingGeometry(0.1, 0.2, 32);
+            // Create a sphere geometry
+            const geometry = new THREE.SphereGeometry(0.1, 32, 32);
+            
+            // Create a wireframe material for the spherical shockwave
             const material = new THREE.MeshBasicMaterial({ 
                 color: 0xffffff,
-                side: THREE.DoubleSide,
+                wireframe: true,
                 transparent: true,
                 opacity: 1
             });
             
             const shockwave = new THREE.Mesh(geometry, material);
             shockwave.position.copy(position);
-            shockwave.position.y = 0.5;
-            shockwave.rotation.x = Math.PI / 2; // Make it parallel to the floor
+            
+            // Create a custom clipping plane that follows the ground
+            // This will prevent the shockwave from being visible below the ground
+            const clipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+            material.clippingPlanes = [clipPlane];
+            material.clipShadows = true;
+            renderer.localClippingEnabled = true;
             
             // Add animation properties
-            shockwave.maxSize = 5;
-            shockwave.lifetime = 0.5; // seconds
+            shockwave.maxSize = 50;
+            shockwave.lifetime = 0.25; // seconds
             shockwave.age = 0;
+            shockwave.position.copy(position);
             
             scene.add(shockwave);
             shockwaves.push(shockwave);
+            
+            return shockwave;
         }
         
         // Update shockwaves (expand and fade)
@@ -244,9 +259,35 @@
                 } else {
                     // Update size and opacity
                     const size = shockwave.maxSize * progress;
-                    shockwave.scale.set(size, size, 1);
+                    shockwave.scale.set(size, size, size);
                     shockwave.material.opacity = 1 - progress;
+                    
+                    // Check if player is within the shockwave radius
+                    const distanceToPlayer = player.position.distanceTo(shockwave.position);
+                    const shockwaveRadius = 0.1 * size; // Actual radius = initial radius * scale
+                    
+                    // Only check once if the player gets caught in each expanding shockwave
+                    if (!shockwave.hitPlayer && distanceToPlayer < shockwaveRadius) {
+                        loseLife();
+                        shockwave.hitPlayer = true;
+                        
+                        // Visual indicator that player was hit
+                        player.material.color.set(0xff0000);
+                        setTimeout(() => {
+                            player.material.color.set(0x3333ff);
+                        }, 200);
+                    }
                 }
+            }
+        }
+        
+        // Lose a life
+        function loseLife() {
+            lives--;
+            updateUI();
+            
+            if (lives <= 0) {
+                gameOver();
             }
         }
         
@@ -342,7 +383,6 @@
         function checkBallCollisions() {
             // Store balls to remove after processing
             const toRemove = [];
-            const affectedByShockwave = [];
             
             // Check all pairs of balls
             for (let i = 0; i < collectibles.length; i++) {
@@ -361,21 +401,6 @@
                         // Create shockwave at midpoint
                         const midpoint = new THREE.Vector3().addVectors(ball1.position, ball2.position).divideScalar(2);
                         createShockwave(midpoint);
-                        
-                        // Check for other balls affected by shockwave (within 1 unit of impact)
-                        for (let k = 0; k < collectibles.length; k++) {
-                            if (k !== i && k !== j) {
-                                const otherBall = collectibles[k];
-                                const distToImpact = otherBall.position.distanceTo(midpoint);
-                                
-                                // If ball is within 1 unit of impact (1 centimeter in game space)
-                                if (distToImpact < 1) {
-                                    if (!affectedByShockwave.includes(otherBall)) {
-                                        affectedByShockwave.push(otherBall);
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -386,28 +411,6 @@
                 if (index !== -1) {
                     scene.remove(ball);
                     collectibles.splice(index, 1);
-                }
-            }
-            
-            // Reduce lives of balls affected by shockwave
-            for (const ball of affectedByShockwave) {
-                ball.lives--;
-                
-                // Visual indicator that ball was hit
-                ball.material.color.set(0xff6600);
-                setTimeout(() => {
-                    if (collectibles.includes(ball)) {
-                        ball.material.color.set(0xffcc00);
-                    }
-                }, 200);
-                
-                // Remove if no lives left
-                if (ball.lives <= 0) {
-                    const index = collectibles.indexOf(ball);
-                    if (index !== -1) {
-                        scene.remove(ball);
-                        collectibles.splice(index, 1);
-                    }
                 }
             }
         }
@@ -445,10 +448,12 @@
         }
         
         // Animation loop
-        function animate() {
+        function animate(time) {
             requestAnimationFrame(animate);
             
-            const deltaTime = 1/60; // Approximate for 60fps
+            // Calculate delta time
+            const deltaTime = (time - lastTime) / 1000; // Convert to seconds
+            lastTime = time;
             
             if (gameActive) {
                 movePlayer();
