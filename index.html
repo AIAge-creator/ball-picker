@@ -7,7 +7,7 @@
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
-        #score {
+        #ui {
             position: absolute;
             top: 10px;
             left: 10px;
@@ -17,6 +17,7 @@
             background-color: rgba(0, 0, 0, 0.5);
             padding: 10px;
             border-radius: 5px;
+            min-width: 200px;
         }
         #instructions {
             position: absolute;
@@ -29,11 +30,47 @@
             padding: 10px;
             border-radius: 5px;
         }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 36px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+        #restart {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
-    <div id="score">Score: 0</div>
+    <div id="ui">
+        <div>Score: <span id="score">0</span></div>
+        <div>Total Collected: <span id="totalCollected">0</span></div>
+        <div>Lives: <span id="lives">5</span></div>
+    </div>
     <div id="instructions">Use WASD or arrow keys to move the player (blue cube)</div>
+    <div id="gameOver">
+        <div>Game Over</div>
+        <div>Final Score: <span id="finalScore">0</span></div>
+        <button id="restart">Play Again</button>
+    </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         // Game variables
@@ -42,10 +79,15 @@
         let score = 0;
         let playerSpeed = 0.1;
         let ballSpeed = 0.03;
-        let scoreElement;
         let spawnTimer = 0;
         let spawnInterval = 60; // frames between spawns
         let totalCollected = 0;
+        let lives = 5;
+        let gameActive = true;
+        let shockwaves = [];
+        
+        // UI elements
+        let scoreElement, totalCollectedElement, livesElement, gameOverElement, finalScoreElement;
         
         // Movement controls
         const keys = {
@@ -99,14 +141,29 @@
             // Create initial collectibles
             spawnCollectible(5);
             
-            // Get score element
+            // Get UI elements
             scoreElement = document.getElementById('score');
-            updateScore();
+            totalCollectedElement = document.getElementById('totalCollected');
+            livesElement = document.getElementById('lives');
+            gameOverElement = document.getElementById('gameOver');
+            finalScoreElement = document.getElementById('finalScore');
+            
+            // Set up restart button
+            document.getElementById('restart').addEventListener('click', restartGame);
+            
+            // Update UI
+            updateUI();
             
             // Add event listeners
             window.addEventListener('resize', onWindowResize);
             window.addEventListener('keydown', onKeyDown);
             window.addEventListener('keyup', onKeyUp);
+            
+            // Reset game state
+            gameActive = true;
+            lives = 5;
+            score = 0;
+            totalCollected = 0;
             
             // Start game loop
             animate();
@@ -124,6 +181,7 @@
                 });
                 
                 const collectible = new THREE.Mesh(geometry, material);
+                collectible.lives = 5; // Each ball has 5 lives
                 
                 // Determine spawn position at the edge
                 let angle = Math.random() * Math.PI * 2;
@@ -146,6 +204,52 @@
             }
         }
         
+        // Create shockwave effect
+        function createShockwave(position) {
+            const geometry = new THREE.RingGeometry(0.1, 0.2, 32);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0xffffff,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 1
+            });
+            
+            const shockwave = new THREE.Mesh(geometry, material);
+            shockwave.position.copy(position);
+            shockwave.position.y = 0.5;
+            shockwave.rotation.x = Math.PI / 2; // Make it parallel to the floor
+            
+            // Add animation properties
+            shockwave.maxSize = 5;
+            shockwave.lifetime = 0.5; // seconds
+            shockwave.age = 0;
+            
+            scene.add(shockwave);
+            shockwaves.push(shockwave);
+        }
+        
+        // Update shockwaves (expand and fade)
+        function updateShockwaves(deltaTime) {
+            for (let i = shockwaves.length - 1; i >= 0; i--) {
+                const shockwave = shockwaves[i];
+                shockwave.age += deltaTime;
+                
+                // Calculate progress (0 to 1)
+                const progress = shockwave.age / shockwave.lifetime;
+                
+                if (progress >= 1) {
+                    // Remove shockwave
+                    scene.remove(shockwave);
+                    shockwaves.splice(i, 1);
+                } else {
+                    // Update size and opacity
+                    const size = shockwave.maxSize * progress;
+                    shockwave.scale.set(size, size, 1);
+                    shockwave.material.opacity = 1 - progress;
+                }
+            }
+        }
+        
         // Handle window resize
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -155,6 +259,8 @@
         
         // Handle keydown events
         function onKeyDown(event) {
+            if (!gameActive) return;
+            
             if (event.key === 'a' || event.key === 'ArrowLeft') keys.a = keys.left = true;
             if (event.key === 'd' || event.key === 'ArrowRight') keys.d = keys.right = true;
             if (event.key === 'w' || event.key === 'ArrowUp') keys.w = keys.up = true;
@@ -171,6 +277,8 @@
         
         // Move player based on keys pressed
         function movePlayer() {
+            if (!gameActive) return;
+            
             if (keys.a || keys.left) player.position.x -= playerSpeed;
             if (keys.d || keys.right) player.position.x += playerSpeed;
             if (keys.w || keys.up) player.position.z -= playerSpeed;
@@ -212,64 +320,173 @@
             });
         }
         
-        // Check for collisions with collectibles
-        function checkCollisions() {
+        // Check for collisions between player and collectibles
+        function checkPlayerCollisions() {
             for (let i = collectibles.length - 1; i >= 0; i--) {
                 const distance = player.position.distanceTo(collectibles[i].position);
                 
                 if (distance < 1) {
-                    // Remove collectible
+                    // Collect ball
                     scene.remove(collectibles[i]);
                     collectibles.splice(i, 1);
                     
                     // Increase score
                     score++;
                     totalCollected++;
-                    updateScore();
+                    updateUI();
                 }
             }
         }
         
-        // Update score display
-        function updateScore() {
-            scoreElement.textContent = `Score: ${score} | Total Collected: ${totalCollected}`;
+        // Check for collisions between collectibles
+        function checkBallCollisions() {
+            // Store balls to remove after processing
+            const toRemove = [];
+            const affectedByShockwave = [];
+            
+            // Check all pairs of balls
+            for (let i = 0; i < collectibles.length; i++) {
+                for (let j = i + 1; j < collectibles.length; j++) {
+                    const ball1 = collectibles[i];
+                    const ball2 = collectibles[j];
+                    
+                    const distance = ball1.position.distanceTo(ball2.position);
+                    
+                    // If two balls collide
+                    if (distance < 1) {
+                        // Mark both for removal
+                        if (!toRemove.includes(ball1)) toRemove.push(ball1);
+                        if (!toRemove.includes(ball2)) toRemove.push(ball2);
+                        
+                        // Create shockwave at midpoint
+                        const midpoint = new THREE.Vector3().addVectors(ball1.position, ball2.position).divideScalar(2);
+                        createShockwave(midpoint);
+                        
+                        // Check for other balls affected by shockwave (within 1 unit of impact)
+                        for (let k = 0; k < collectibles.length; k++) {
+                            if (k !== i && k !== j) {
+                                const otherBall = collectibles[k];
+                                const distToImpact = otherBall.position.distanceTo(midpoint);
+                                
+                                // If ball is within 1 unit of impact (1 centimeter in game space)
+                                if (distToImpact < 1) {
+                                    if (!affectedByShockwave.includes(otherBall)) {
+                                        affectedByShockwave.push(otherBall);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Remove collided balls
+            for (const ball of toRemove) {
+                const index = collectibles.indexOf(ball);
+                if (index !== -1) {
+                    scene.remove(ball);
+                    collectibles.splice(index, 1);
+                }
+            }
+            
+            // Reduce lives of balls affected by shockwave
+            for (const ball of affectedByShockwave) {
+                ball.lives--;
+                
+                // Visual indicator that ball was hit
+                ball.material.color.set(0xff6600);
+                setTimeout(() => {
+                    if (collectibles.includes(ball)) {
+                        ball.material.color.set(0xffcc00);
+                    }
+                }, 200);
+                
+                // Remove if no lives left
+                if (ball.lives <= 0) {
+                    const index = collectibles.indexOf(ball);
+                    if (index !== -1) {
+                        scene.remove(ball);
+                        collectibles.splice(index, 1);
+                    }
+                }
+            }
+        }
+        
+        // Update UI elements
+        function updateUI() {
+            scoreElement.textContent = score;
+            totalCollectedElement.textContent = totalCollected;
+            livesElement.textContent = lives;
+        }
+        
+        // Handle game over
+        function gameOver() {
+            gameActive = false;
+            finalScoreElement.textContent = score;
+            gameOverElement.style.display = 'block';
+        }
+        
+        // Restart the game
+        function restartGame() {
+            // Clear the scene
+            while (scene.children.length > 0) {
+                scene.remove(scene.children[0]);
+            }
+            
+            // Clear arrays
+            collectibles = [];
+            shockwaves = [];
+            
+            // Hide game over screen
+            gameOverElement.style.display = 'none';
+            
+            // Reinitialize
+            init();
         }
         
         // Animation loop
         function animate() {
             requestAnimationFrame(animate);
             
-            movePlayer();
-            moveBalls();
-            checkCollisions();
+            const deltaTime = 1/60; // Approximate for 60fps
             
-            // Spawning new balls
-            spawnTimer++;
-            if (spawnTimer >= spawnInterval) {
-                spawnCollectible();
-                spawnTimer = 0;
+            if (gameActive) {
+                movePlayer();
+                moveBalls();
+                checkPlayerCollisions();
+                checkBallCollisions();
                 
-                // Gradually increase spawn rate
-                spawnInterval = Math.max(20, spawnInterval - 0.1);
-            }
-            
-            // Rotate collectibles
-            collectibles.forEach(collectible => {
-                collectible.rotation.y += 0.02;
-            });
-            
-            // Remove balls that have gone too far from the play area
-            for (let i = collectibles.length - 1; i >= 0; i--) {
-                const distFromCenter = Math.sqrt(
-                    collectibles[i].position.x * collectibles[i].position.x + 
-                    collectibles[i].position.z * collectibles[i].position.z
-                );
+                // Spawning new balls
+                spawnTimer++;
+                if (spawnTimer >= spawnInterval) {
+                    spawnCollectible();
+                    spawnTimer = 0;
+                    
+                    // Gradually increase spawn rate
+                    spawnInterval = Math.max(20, spawnInterval - 0.1);
+                }
                 
-                if (distFromCenter > 20) {
-                    scene.remove(collectibles[i]);
-                    collectibles.splice(i, 1);
+                // Rotate collectibles
+                collectibles.forEach(collectible => {
+                    collectible.rotation.y += 0.02;
+                });
+                
+                // Remove balls that have gone too far from the play area
+                for (let i = collectibles.length - 1; i >= 0; i--) {
+                    const distFromCenter = Math.sqrt(
+                        collectibles[i].position.x * collectibles[i].position.x + 
+                        collectibles[i].position.z * collectibles[i].position.z
+                    );
+                    
+                    if (distFromCenter > 20) {
+                        scene.remove(collectibles[i]);
+                        collectibles.splice(i, 1);
+                    }
                 }
             }
+            
+            // Update shockwaves (happens even when game is not active)
+            updateShockwaves(deltaTime);
             
             renderer.render(scene, camera);
         }
