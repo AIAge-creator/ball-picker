@@ -153,6 +153,7 @@
         let lastTime = 0;
         let isPaused = false;
         let pauseOverlay;
+        let animationFrameId = null;
         
         // UI elements
         let scoreElement, totalCollectedElement, livesElement, gameOverElement, finalScoreElement;
@@ -524,25 +525,67 @@
         
         // Restart the game
         function restartGame() {
-            // Clear the scene
-            while (scene.children.length > 0) {
-                scene.remove(scene.children[0]);
+            // Cancel the animation frame
+            if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
             }
+
+            // ...existing cleanup code...
+
+            // First dispose of all resources from the old scene
+            scene.traverse((object) => {
+                if (object.isMesh) {
+                    object.geometry.dispose();
+                    if (object.material.isMaterial) {
+                        object.material.dispose();
+                    } else {
+                        object.material.forEach(material => material.dispose());
+                    }
+                }
+            });
+
+            // Remove old renderer from DOM
+            document.body.removeChild(renderer.domElement);
             
-            // Clear arrays
+            // Dispose of the renderer
+            renderer.dispose();
+            
+            // Clear the scene
+            scene.clear();
+            
+            // Clear arrays and references
             collectibles = [];
             shockwaves = [];
+            scene = null;
+            camera = null;
+            renderer = null;
+            player = null;
             
-            // Hide game over screen
+            // Hide game over and pause screens
             gameOverElement.style.display = 'none';
+            pauseOverlay.style.display = 'none';
             
-            // Reinitialize
+            // Reset game state
+            isPaused = false;
+            gameActive = true;
+            score = 0;
+            lives = 5;
+            spawnTimer = 0;
+            spawnInterval = 60;
+            ballSpeed = 0.03;
+            
+            // Update the control displays
+            document.getElementById('spawnRateDisplay').textContent = spawnInterval.toFixed(0);
+            document.getElementById('ballSpeedDisplay').textContent = ballSpeed.toFixed(2);
+            
+            // Reinitialize everything
             init();
         }
         
         // Animation loop
         function animate(time) {
-            requestAnimationFrame(animate);
+            animationFrameId = requestAnimationFrame(animate);
             
             // Calculate delta time
             const deltaTime = (time - lastTime) / 1000; // Convert to seconds
