@@ -86,6 +86,20 @@
         .control-group button:hover {
             background-color: #45a049;
         }
+        #pauseOverlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 36px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -95,11 +109,18 @@
         <div>Spawn Rate: <span id="spawnRate">0</span></div>
         <div>Lives: <span id="lives">5</span></div>
     </div>
-    <div id="instructions">Use WASD or arrow keys to move the player (blue cube)</div>
+    <div id="instructions">
+        Use WASD or arrow keys to move the player (blue cube)<br>
+        Press 'P' to pause/unpause
+    </div>
     <div id="gameOver">
         <div>Game Over</div>
         <div>Final Score: <span id="finalScore">0</span></div>
         <button id="restart">Play Again</button>
+    </div>
+    <div id="pauseOverlay">
+        <div>PAUSED</div>
+        <div style="font-size: 16px; margin-top: 10px;">Press 'P' to resume</div>
     </div>
     <div class="controls">
         <div class="control-group">
@@ -130,6 +151,8 @@
         let gameActive = true;
         let shockwaves = [];
         let lastTime = 0;
+        let isPaused = false;
+        let pauseOverlay;
         
         // UI elements
         let scoreElement, totalCollectedElement, livesElement, gameOverElement, finalScoreElement;
@@ -217,6 +240,7 @@
             // Add after other UI elements are initialized
             document.getElementById('spawnRateDisplay').textContent = spawnInterval.toFixed(0);
             document.getElementById('ballSpeedDisplay').textContent = ballSpeed.toFixed(2);
+            pauseOverlay = document.getElementById('pauseOverlay');
             
             // Add event listeners
             window.addEventListener('resize', onWindowResize);
@@ -362,6 +386,13 @@
         // Handle keydown events
         function onKeyDown(event) {
             if (!gameActive) return;
+            
+            if (event.key === 'p' || event.key === 'P') {
+                togglePause();
+                return;
+            }
+            
+            if (isPaused) return;
             
             if (event.key === 'j' || event.key === 'a' || event.key === 'ArrowLeft') keys.a = keys.left = true;
             if (event.key === 'l' || event.key === 'd' || event.key === 'ArrowRight') keys.d = keys.right = true;
@@ -517,7 +548,7 @@
             const deltaTime = (time - lastTime) / 1000; // Convert to seconds
             lastTime = time;
             
-            if (gameActive) {
+            if (gameActive && !isPaused) {
                 movePlayer();
                 moveBalls();
                 checkPlayerCollisions();
@@ -558,6 +589,13 @@
             renderer.render(scene, camera);
         }
         
+        // Add this new function
+        function togglePause() {
+            if (!gameActive) return;
+            isPaused = !isPaused;
+            pauseOverlay.style.display = isPaused ? 'block' : 'none';
+        }
+
         // Start the game
         init();
     </script>
