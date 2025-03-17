@@ -100,6 +100,18 @@
             text-align: center;
             display: none;
         }
+        #closeCall {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ff00;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+            text-shadow: 0 0 10px #00ff00;
+            display: none;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -294,7 +306,7 @@
             }
         }
         
-        // Create spherical shockwave effect
+        // Modify createShockwave function
         function createShockwave(position) {
             // Create a sphere geometry
             const geometry = new THREE.SphereGeometry(0.1, 32, 32);
@@ -326,10 +338,26 @@
             scene.add(shockwave);
             shockwaves.push(shockwave);
             
+            // Create a red ring for the danger zone
+            const dangerGeometry = new THREE.RingGeometry(0.1, 0.12, 32);
+            const dangerMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff0000,
+                transparent: true,
+                opacity: 0.8,
+                side: THREE.DoubleSide
+            });
+            const dangerRing = new THREE.Mesh(dangerGeometry, dangerMaterial);
+            dangerRing.rotation.x = -Math.PI / 2; // Lay flat
+            dangerRing.position.copy(position);
+            
+            scene.add(dangerRing);
+            shockwave.dangerRing = dangerRing; // Reference to remove later
+            shockwave.closeCallChecked = false; // Flag to ensure bonus is given only once
+            
             return shockwave;
         }
         
-        // Update shockwaves (expand and fade)
+        // Modify updateShockwaves function
         function updateShockwaves(deltaTime) {
             for (let i = shockwaves.length - 1; i >= 0; i--) {
                 const shockwave = shockwaves[i];
@@ -337,22 +365,45 @@
                 
                 // Calculate progress (0 to 1)
                 const progress = shockwave.age / shockwave.lifetime;
+                const size = shockwave.maxSize * progress;
+                const distanceToPlayer = player.position.distanceTo(shockwave.position);
+                const shockwaveRadius = 0.1 * size;
+                const dangerRadius = shockwaveRadius * 1.1;
                 
                 if (progress >= 1) {
-                    // Remove shockwave
+
+                    // Check for close call (within danger zone but not shockwave)
+                    if (!shockwave.closeCallChecked && !shockwave.hitPlayer && 
+                        distanceToPlayer > shockwaveRadius && 
+                        distanceToPlayer < dangerRadius) {
+                        
+                        // Award bonus lives
+                        lives += 2;
+                        updateUI();
+                        shockwave.closeCallChecked = true;
+                        
+                        // Show close call message
+                        const closeCall = document.getElementById('closeCall');
+                        closeCall.style.display = 'block';
+                        setTimeout(() => {
+                            closeCall.style.display = 'none';
+                        }, 1000);
+                    }
+                    
+                    // Remove shockwave and its danger ring
                     scene.remove(shockwave);
+                    scene.remove(shockwave.dangerRing);
                     shockwaves.splice(i, 1);
                 } else {
-                    // Update size and opacity
-                    const size = shockwave.maxSize * progress;
                     shockwave.scale.set(size, size, size);
                     shockwave.material.opacity = 1 - progress;
                     
-                    // Check if player is within the shockwave radius
-                    const distanceToPlayer = player.position.distanceTo(shockwave.position);
-                    const shockwaveRadius = 0.1 * size; // Actual radius = initial radius * scale
+                    // Update danger ring size
+                    const dangerSize = size * 1.1; // Slightly larger than shockwave
+                    shockwave.dangerRing.scale.set(dangerSize, dangerSize, dangerSize);
+                    shockwave.dangerRing.material.opacity = (1 - progress) * 0.8;
                     
-                    // Only check once if the player gets caught in each expanding shockwave
+                    // Check for shockwave hit
                     if (!shockwave.hitPlayer && distanceToPlayer < shockwaveRadius) {
                         loseLife();
                         shockwave.hitPlayer = true;
@@ -531,8 +582,6 @@
                 animationFrameId = null;
             }
 
-            // ...existing cleanup code...
-
             // First dispose of all resources from the old scene
             scene.traverse((object) => {
                 if (object.isMesh) {
@@ -642,5 +691,7 @@
         // Start the game
         init();
     </script>
+    <!-- Add after your other overlay divs -->
+    <div id="closeCall">Close call! +2</div>
 </body>
 </html>
