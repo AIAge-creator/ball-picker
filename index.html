@@ -149,6 +149,7 @@
         </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script>
         // Game variables
         let scene, camera, renderer;
@@ -205,6 +206,10 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
             
+            // Add this in the init() function after creating the renderer
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
             // Create lights
             const ambientLight = new THREE.AmbientLight(0x404040);
             scene.add(ambientLight);
@@ -213,6 +218,11 @@
             directionalLight.position.set(1, 1, 1);
             scene.add(directionalLight);
             
+            // Modify the directional light
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
+
             // Create floor
             const floorGeometry = new THREE.PlaneGeometry(30, 30);
             const floorMaterial = new THREE.MeshStandardMaterial({ 
@@ -226,13 +236,61 @@
             // Add to scene
             scene.add(floor);
             
+            // Make the floor receive shadows
+            floor.receiveShadow = true;
+
             // Create player
-            const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
-            const playerMaterial = new THREE.MeshStandardMaterial({ color: 0x3333ff });
+            const playerGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+            const playerMaterial = new THREE.MeshStandardMaterial({
+                color: 0xffff00, // Yellow
+                roughness: 0.3,
+                metalness: 0.2
+            });
             player = new THREE.Mesh(playerGeometry, playerMaterial);
             player.position.y = 0.5;
+            player.castShadow = true;
+
+            // Create eyes (black spheres)
+            const eyeGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+            const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+
+            // Position eyes
+            leftEye.position.set(-0.2, 0.2, 0.4);
+            rightEye.position.set(0.2, 0.2, 0.4);
+            player.add(leftEye);
+            player.add(rightEye);
+
+            // Replace the smile creation and positioning code with:
+
+            // Create smile (curved black line that follows sphere surface)
+            const smileRadius = 0.2;
+            const smileThickness = 0.03;
+            const smileGeometry = new THREE.TorusGeometry(
+                smileRadius,          // radius of the center line of the torus
+                smileThickness,       // thickness of the torus tube
+                16,                   // number of segments around the tube
+                16,                   // number of segments around the center line
+                Math.PI              // arc length in radians
+            );
+
+            const smileMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const smile = new THREE.Mesh(smileGeometry, smileMaterial);
+
+            // Position and rotate the smile to follow sphere curvature
+            smile.position.set(0, -0.1, 0.35);  // Moved slightly closer to sphere surface
+            smile.rotation.x = Math.PI / 2;
+            smile.rotation.y = Math.PI;
+            smile.scale.z = 0.7;  // Compress the smile to follow sphere curvature better
+
+            player.add(smile);
+
             scene.add(player);
-            
+
+            // Store the original face direction for rotation calculations
+            player.userData.faceDirection = new THREE.Vector3(0, 0, 1);
+
             // Create initial collectibles
             spawnCollectible(5);
             
@@ -377,8 +435,8 @@
                         distanceToPlayer > shockwaveRadius && 
                         distanceToPlayer < dangerRadius) {
                         
-                        // Award bonus lives
-                        lives += 2;
+                        // Award bonus lives (max 5)
+                        lives = Math.min(5, lives + 2);
                         updateUI();
                         shockwave.closeCallChecked = true;
                         
@@ -409,9 +467,9 @@
                         shockwave.hitPlayer = true;
                         
                         // Visual indicator that player was hit
-                        player.material.color.set(0xff0000);
+                        playerMaterial.emissive = new THREE.Color(0xff0000);
                         setTimeout(() => {
-                            player.material.color.set(0x3333ff);
+                            playerMaterial.emissive = new THREE.Color(0x000000);
                         }, 200);
                     }
                 }
@@ -460,14 +518,41 @@
             if (event.key === 'k' || event.key === 's' || event.key === 'ArrowDown') keys.s = keys.down = false;
         }
         
-        // Move player based on keys pressed
+        // Replace the movePlayer function with this:
+
         function movePlayer() {
             if (!gameActive) return;
             
-            if (keys.a || keys.left) player.position.x -= playerSpeed;
-            if (keys.d || keys.right) player.position.x += playerSpeed;
-            if (keys.w || keys.up) player.position.z -= playerSpeed;
-            if (keys.s || keys.down) player.position.z += playerSpeed;
+            let moved = false;
+            let moveDirection = new THREE.Vector3(0, 0, 0);
+            
+            if (keys.a || keys.left) {
+                moveDirection.x -= 1;
+                moved = true;
+            }
+            if (keys.d || keys.right) {
+                moveDirection.x += 1;
+                moved = true;
+            }
+            if (keys.w || keys.up) {
+                moveDirection.z -= 1;
+                moved = true;
+            }
+            if (keys.s || keys.down) {
+                moveDirection.z += 1;
+                moved = true;
+            }
+            
+            if (moved) {
+                // Update position
+                moveDirection.normalize();
+                player.position.x += moveDirection.x * playerSpeed;
+                player.position.z += moveDirection.z * playerSpeed;
+                
+                // Update rotation to face movement direction
+                const angle = Math.atan2(moveDirection.x, moveDirection.z);
+                player.rotation.y = angle;
+            }
             
             // Boundary limits
             player.position.x = Math.max(-14, Math.min(14, player.position.x));
@@ -564,7 +649,7 @@
             scoreElement.textContent = score;
             totalCollectedElement.textContent = totalCollected;
             livesElement.textContent = lives;
-            spawnRateElement.textContent = Math.round(60 - spawnInterval)
+            spawnRateElement.textContent = Math.round(spawnInterval)
         }
         
         // Handle game over
