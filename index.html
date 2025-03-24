@@ -112,6 +112,18 @@
             display: none;
             pointer-events: none;
         }
+        /* Add this to your existing styles */
+        #hitFlash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 0, 0, 0.3);
+            pointer-events: none;
+            display: none;
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
@@ -188,6 +200,34 @@
         function adjustBallSpeed(delta) {
             ballSpeed = Math.max(0.01, Math.min(0.1, ballSpeed + delta));
             document.getElementById('ballSpeedDisplay').textContent = ballSpeed.toFixed(2);
+        }
+
+        // Add this function before init()
+        function startHitEffect() {
+            // Screen flash
+            const hitFlash = document.getElementById('hitFlash');
+            hitFlash.style.display = 'block';
+            setTimeout(() => {
+                hitFlash.style.display = 'none';
+            }, 100);
+
+            // Player red gradient effect
+            const startColor = new THREE.Color(0xffff00); // Yellow
+            const endColor = new THREE.Color(0xff0000);   // Red
+            const steps = 20;
+            let step = 0;
+
+            const flashInterval = setInterval(() => {
+                if (step < steps) {
+                    const progress = step / steps;
+                    const currentColor = new THREE.Color().lerpColors(endColor, startColor, progress);
+                    player.material.color.copy(currentColor);
+                    step++;
+                } else {
+                    clearInterval(flashInterval);
+                    player.material.color.setHex(0xffff00); // Reset to yellow
+                }
+            }, 10);
         }
 
         // Initialize the game
@@ -466,12 +506,7 @@
                     if (!shockwave.hitPlayer && distanceToPlayer < shockwaveRadius) {
                         loseLife();
                         shockwave.hitPlayer = true;
-                        
-                        // Visual indicator that player was hit
-                        playerMaterial.emissive = new THREE.Color(0xff0000);
-                        setTimeout(() => {
-                            playerMaterial.emissive = new THREE.Color(0x000000);
-                        }, 200);
+                        startHitEffect();
                     }
                 }
             }
@@ -779,5 +814,6 @@
     </script>
     <!-- Add after your other overlay divs -->
     <div id="closeCall">Close call! +2</div>
+    <div id="hitFlash"></div>
 </body>
 </html>
