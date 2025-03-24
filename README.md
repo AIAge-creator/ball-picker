@@ -1,10 +1,10 @@
-# Cube Dodge
+# Ball Picker
 
-A 3D browser-based dodge game built with Three.js where you control a blue cube avoiding colliding spheres while collecting points.
+A 3D browser-based picker game built with Three.js where you control a smiley face avoiding colliding spheres while collecting points.
 
 ## Description
 
-In Cube Dodge, you control a blue cube on a flat surface. Golden spheres spawn at the edges and move towards the center. Collect them for points, but be careful - when spheres collide, they create expanding shockwaves that can damage you. However, skilled players can risk getting close to shockwaves for bonus lives!
+In Ball Picker, you control a smiley face on a flat surface. Golden spheres spawn at the edges and move towards the center. Collect them for points, but be careful - when spheres collide, they create expanding shockwaves that can damage you. However, skilled players can risk getting close to shockwaves for bonus lives!
 
 ## Features
 
@@ -27,7 +27,7 @@ In Cube Dodge, you control a blue cube on a flat surface. Golden spheres spawn a
 
 ## Gameplay Mechanics
 
-- **Basic Movement**: Control the blue cube to collect golden spheres
+- **Basic Movement**: Control the smiley face to collect golden spheres
 - **Scoring**: Each collected sphere adds 1 point
 - **Lives**: Start with 5 lives
 - **Shockwaves**: Created when spheres collide
